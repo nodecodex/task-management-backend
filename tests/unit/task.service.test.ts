@@ -82,14 +82,14 @@ describe('TaskService Unit Tests', () => {
   });
 
   describe('updateTask & status movement', () => {
-    it('should allow member to move status of an assigned task', async () => {
+    it('should allow member to update status of an unassigned task created by another user', async () => {
       (taskRepository.findById as jest.Mock).mockResolvedValue({
         id: 'task-uuid-1',
         title: 'Design Task',
         status: TaskStatus.TODO,
         boardId: 'board-uuid',
         createdById: 'another-user',
-        assignees: [{ userId: mockMemberUser.id }],
+        assignees: [{ userId: 'someone-else' }],
       });
 
       (taskRepository.update as jest.Mock).mockResolvedValue({
@@ -98,7 +98,7 @@ describe('TaskService Unit Tests', () => {
         status: TaskStatus.IN_PROGRESS,
         boardId: 'board-uuid',
         createdById: 'another-user',
-        assignees: [{ userId: mockMemberUser.id }],
+        assignees: [{ userId: 'someone-else' }],
       });
 
       const result = await taskService.updateTask(
@@ -108,25 +108,144 @@ describe('TaskService Unit Tests', () => {
       );
 
       expect(result.status).toBe(TaskStatus.IN_PROGRESS);
+      expect(taskRepository.update).toHaveBeenCalledWith('task-uuid-1', {
+        status: TaskStatus.IN_PROGRESS,
+      });
     });
 
-    it('should throw ForbiddenError when member tries to update an unassigned task not created by them', async () => {
+    it('should allow member to update non-status fields on a task they created', async () => {
+      (taskRepository.findById as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Original Title',
+        description: 'Original Desc',
+        status: TaskStatus.TODO,
+        boardId: 'board-uuid',
+        createdById: mockMemberUser.id,
+        assignees: [],
+      });
+
+      (taskRepository.update as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Updated Title',
+        description: 'Updated Desc',
+        status: TaskStatus.TODO,
+        boardId: 'board-uuid',
+        createdById: mockMemberUser.id,
+        assignees: [],
+      });
+
+      const result = await taskService.updateTask(
+        'task-uuid-1',
+        { title: 'Updated Title', description: 'Updated Desc' },
+        mockMemberUser
+      );
+
+      expect(result.title).toBe('Updated Title');
+      expect(taskRepository.update).toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenError when member tries to update non-status fields on a task created by another user', async () => {
       (taskRepository.findById as jest.Mock).mockResolvedValue({
         id: 'task-uuid-1',
         title: 'Protected Task',
         status: TaskStatus.TODO,
         boardId: 'board-uuid',
         createdById: 'another-user',
-        assignees: [{ userId: 'someone-else' }],
+        assignees: [{ userId: mockMemberUser.id }],
       });
 
       await expect(
         taskService.updateTask(
           'task-uuid-1',
-          { status: TaskStatus.IN_PROGRESS },
+          { title: 'Hacked Title' },
           mockMemberUser
         )
       ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('should allow admin to update non-status fields on any task', async () => {
+      (taskRepository.findById as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Original Task',
+        status: TaskStatus.TODO,
+        boardId: 'board-uuid',
+        createdById: 'another-user',
+        assignees: [],
+      });
+
+      (taskRepository.update as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Admin Updated Title',
+        status: TaskStatus.TODO,
+        boardId: 'board-uuid',
+        createdById: 'another-user',
+        assignees: [],
+      });
+
+      const result = await taskService.updateTask(
+        'task-uuid-1',
+        { title: 'Admin Updated Title' },
+        mockAdminUser
+      );
+
+      expect(result.title).toBe('Admin Updated Title');
+    });
+  });
+
+  describe('deleteTask', () => {
+    it('should allow member to delete a task they created', async () => {
+      (taskRepository.findById as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'My Task',
+        boardId: 'board-uuid',
+        createdById: mockMemberUser.id,
+      });
+
+      (taskRepository.delete as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'My Task',
+        boardId: 'board-uuid',
+        createdById: mockMemberUser.id,
+      });
+
+      const result = await taskService.deleteTask('task-uuid-1', mockMemberUser);
+
+      expect(result.id).toBe('task-uuid-1');
+      expect(taskRepository.delete).toHaveBeenCalledWith('task-uuid-1');
+    });
+
+    it('should throw ForbiddenError when member tries to delete a task created by another user', async () => {
+      (taskRepository.findById as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Others Task',
+        boardId: 'board-uuid',
+        createdById: 'another-user-uuid',
+      });
+
+      await expect(
+        taskService.deleteTask('task-uuid-1', mockMemberUser)
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('should allow admin to delete a task created by another user', async () => {
+      (taskRepository.findById as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Others Task',
+        boardId: 'board-uuid',
+        createdById: 'another-user-uuid',
+      });
+
+      (taskRepository.delete as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Others Task',
+        boardId: 'board-uuid',
+        createdById: 'another-user-uuid',
+      });
+
+      const result = await taskService.deleteTask('task-uuid-1', mockAdminUser);
+
+      expect(result.id).toBe('task-uuid-1');
+      expect(taskRepository.delete).toHaveBeenCalledWith('task-uuid-1');
     });
   });
 });
