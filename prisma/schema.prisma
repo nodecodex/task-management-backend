@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id           String         @id @default(uuid()) @db.Uuid
+  name         String         @db.VarChar(150)
+  email        String         @unique @db.VarChar(255)
+  password     String         @db.VarChar(255)
+  role         Role           @default(MEMBER)
+  createdTasks Task[]         @relation("CreatedTasks")
+  assignedTasks TaskAssignee[]
+  comments     Comment[]
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@map("users")
+  @@index([email])
+  @@index([role])
+}
+
+model Board {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String   @db.VarChar(150)
+  theme     String   @default("light") @db.VarChar(50)
+  tasks     Task[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("boards")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(100)
+  tasks     Task[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique @db.VarChar(100)
+  theme     String    @default("info") @db.VarChar(50)
+  taskTags  TaskTag[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("tags")
+}
+
+model Task {
+  id          String         @id @default(uuid()) @db.Uuid
+  boardId     String         @map("board_id") @db.Uuid
+  board       Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  title       String         @db.VarChar(255)
+  description String?        @db.Text
+  status      TaskStatus     @default(TODO)
+  categoryId  String?        @map("category_id") @db.Uuid
+  category    Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  dueDate     DateTime?      @map("due_date")
+  priority    TaskPriority   @default(MEDIUM)
+  createdById String         @map("created_by") @db.Uuid
+  createdBy   User           @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: Restrict)
+  assignees   TaskAssignee[]
+  tags        TaskTag[]
+  comments    Comment[]
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@map("tasks")
+  @@index([boardId])
+  @@index([status])
+  @@index([priority])
+  @@index([categoryId])
+  @@index([dueDate])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model TaskAssignee {
+  taskId    String   @map("task_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([taskId, userId])
+  @@map("task_assignees")
+  @@index([taskId])
+  @@index([userId])
+}
+
+model TaskTag {
+  taskId    String   @map("task_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([taskId, tagId])
+  @@map("task_tags")
+  @@index([taskId])
+  @@index([tagId])
+}
+
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  comment   String   @db.Text
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("comments")
+  @@index([taskId])
+  @@index([userId])
+  @@index([createdAt])
+}

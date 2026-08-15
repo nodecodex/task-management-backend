@@ -1,0 +1,692 @@
+openapi: 3.0.3
+info:
+  title: Kanban Task Management API
+  version: 1.0.0
+  description: Production-ready scalable Kanban Task Management Backend REST API with Socket.IO real-time synchronization.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local Development Server
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  example: Sara Dervashi
+                email:
+                  type: string
+                  format: email
+                  example: sara@example.com
+                password:
+                  type: string
+                  format: password
+                  example: Password123!
+                role:
+                  type: string
+                  enum: [ADMIN, MANAGER, MEMBER]
+                  default: MEMBER
+      responses:
+        201:
+          description: User registered successfully
+        400:
+          description: Validation error
+        409:
+          description: Email already exists
+
+  /auth/login:
+    post:
+      summary: Authenticate user & get JWT token
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@example.com
+                password:
+                  type: string
+                  example: Password123!
+      responses:
+        200:
+          description: Login successful
+        401:
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user profile
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: User profile fetched successfully
+        401:
+          description: Unauthorized
+
+  /users:
+    get:
+      summary: List all users with pagination and search
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [ADMIN, MANAGER, MEMBER]
+      responses:
+        200:
+          description: Users list fetched
+    post:
+      summary: Create user (Admin only)
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [ADMIN, MANAGER, MEMBER]
+      responses:
+        201:
+          description: User created
+        403:
+          description: Forbidden
+
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: User fetched
+        404:
+          description: User not found
+    put:
+      summary: Update user
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+                  enum: [ADMIN, MANAGER, MEMBER]
+      responses:
+        200:
+          description: User updated
+    delete:
+      summary: Delete user (Admin only)
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: User deleted
+
+  /boards:
+    get:
+      summary: List boards
+      tags:
+        - Boards
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        200:
+          description: Boards fetched
+    post:
+      summary: Create board (Admin/Manager)
+      tags:
+        - Boards
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                theme:
+                  type: string
+                  default: light
+      responses:
+        201:
+          description: Board created
+
+  /boards/{id}:
+    get:
+      summary: Get board with full task hierarchy
+      tags:
+        - Boards
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Board fetched with tasks
+        404:
+          description: Board not found
+    put:
+      summary: Update board
+      tags:
+        - Boards
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                theme:
+                  type: string
+      responses:
+        200:
+          description: Board updated
+    delete:
+      summary: Delete board (Admin only)
+      tags:
+        - Boards
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Board deleted
+
+  /tasks:
+    get:
+      summary: Get tasks with filtering, search, and pagination
+      tags:
+        - Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [TODO, IN_PROGRESS, REVIEW, COMPLETED, BLOCKED]
+        - in: query
+          name: priority
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, URGENT]
+        - in: query
+          name: assignee
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: board_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: category_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: due_date
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, title, dueDate, priority, status]
+        - in: query
+          name: order
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        200:
+          description: Tasks list fetched
+    post:
+      summary: Create new task
+      tags:
+        - Tasks
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - board_id
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                board_id:
+                  type: string
+                  format: uuid
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, REVIEW, COMPLETED, BLOCKED]
+                  default: TODO
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, URGENT]
+                  default: MEDIUM
+                category_id:
+                  type: string
+                  format: uuid
+                due_date:
+                  type: string
+                  format: date-time
+                assignee_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                tag_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        201:
+          description: Task created successfully
+
+  /tasks/{id}:
+    get:
+      summary: Get task details by ID
+      tags:
+        - Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Task details fetched
+        404:
+          description: Task not found
+    put:
+      summary: Update task (moves Kanban column if status changed)
+      tags:
+        - Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, REVIEW, COMPLETED, BLOCKED]
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, URGENT]
+                board_id:
+                  type: string
+                  format: uuid
+                category_id:
+                  type: string
+                  format: uuid
+                due_date:
+                  type: string
+                  format: date-time
+                assignee_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                tag_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        200:
+          description: Task updated successfully
+    delete:
+      summary: Delete task
+      tags:
+        - Tasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Task deleted successfully
+
+  /tasks/{taskId}/comments:
+    get:
+      summary: Get comments for a task
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Comments fetched
+    post:
+      summary: Add comment to task
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: taskId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - comment
+              properties:
+                comment:
+                  type: string
+                  example: Design implementation is ready.
+      responses:
+        201:
+          description: Comment added
+
+  /comments/{id}:
+    put:
+      summary: Update a comment (Author or Admin)
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - comment
+              properties:
+                comment:
+                  type: string
+      responses:
+        200:
+          description: Comment updated
+    delete:
+      summary: Delete a comment (Author or Admin)
+      tags:
+        - Comments
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Comment deleted
+
+  /dashboard:
+    get:
+      summary: Get aggregated dashboard statistics
+      tags:
+        - Dashboard
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: board_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: assignee
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: date_from
+          schema:
+            type: string
+        - in: query
+          name: date_to
+          schema:
+            type: string
+      responses:
+        200:
+          description: Dashboard statistics returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_tasks:
+                    type: integer
+                  todo:
+                    type: integer
+                  in_progress:
+                    type: integer
+                  review:
+                    type: integer
+                  completed:
+                    type: integer
+                  blocked:
+                    type: integer
+                  high_priority:
+                    type: integer
+                  urgent:
+                    type: integer
+                  overdue:
+                    type: integer
+                  total_users:
+                    type: integer
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
