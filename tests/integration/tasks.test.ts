@@ -177,7 +177,44 @@ describe('Tasks REST API Integration Tests', () => {
       expect(res.body.data.status).toBe(TaskStatus.COMPLETED);
     });
 
-    it('should return 403 when member tries to update non-status fields of another user task', async () => {
+    it('should update task assignees as a member on another user task', async () => {
+      const memberUserId = '00000000-0000-0000-0000-000000000099';
+      const memberToken = createTestToken({
+        userId: memberUserId,
+        role: Role.MEMBER,
+      });
+
+      (prisma.task.findUnique as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'Assign Task',
+        status: TaskStatus.TODO,
+        boardId: sampleBoardId,
+        createdById: '00000000-0000-0000-0000-000000000001',
+        assignees: [],
+      });
+
+      (prisma.task.update as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'Assign Task',
+        status: TaskStatus.TODO,
+        boardId: sampleBoardId,
+        createdById: '00000000-0000-0000-0000-000000000001',
+        assignees: [{ user: { id: memberUserId, name: 'Member User' } }],
+        tags: [],
+      });
+
+      const res = await request(app)
+        .put(`/api/v1/tasks/${sampleTaskId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({
+          assignee_ids: [memberUserId],
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 403 when member tries to update non-status/non-assignee fields of another user task', async () => {
       const memberToken = createTestToken({
         userId: '00000000-0000-0000-0000-000000000099',
         role: Role.MEMBER,
