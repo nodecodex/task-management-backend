@@ -113,6 +113,36 @@ describe('TaskService Unit Tests', () => {
       });
     });
 
+    it('should allow member to update assignees of a task created by another user', async () => {
+      (taskRepository.findById as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Design Task',
+        status: TaskStatus.TODO,
+        boardId: 'board-uuid',
+        createdById: 'another-user',
+        assignees: [],
+      });
+
+      (taskRepository.update as jest.Mock).mockResolvedValue({
+        id: 'task-uuid-1',
+        title: 'Design Task',
+        status: TaskStatus.TODO,
+        boardId: 'board-uuid',
+        createdById: 'another-user',
+        assignees: [{ userId: mockMemberUser.id }],
+      });
+
+      const result = await taskService.updateTask(
+        'task-uuid-1',
+        { assignee_ids: [mockMemberUser.id] },
+        mockMemberUser
+      );
+
+      expect(taskRepository.update).toHaveBeenCalledWith('task-uuid-1', {
+        assignee_ids: [mockMemberUser.id],
+      });
+    });
+
     it('should allow member to update non-status fields on a task they created', async () => {
       (taskRepository.findById as jest.Mock).mockResolvedValue({
         id: 'task-uuid-1',

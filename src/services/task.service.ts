@@ -81,15 +81,15 @@ export class TaskService {
     // Member authorization check
     if (user.role === Role.MEMBER) {
       const isCreator = existing.createdById === user.id;
-      const hasNonStatusFields = Object.entries(input).some(
-        ([key, val]) => key !== 'status' && val !== undefined
+      const hasRestrictedFields = Object.entries(input).some(
+        ([key, val]) => key !== 'status' && key !== 'assignee_ids' && val !== undefined
       );
 
-      // All roles (including members) can update task status.
+      // All roles (including members) can update task status and assignees.
       // Members cannot modify other fields on tasks they did not create.
-      if (hasNonStatusFields && !isCreator) {
+      if (hasRestrictedFields && !isCreator) {
         throw new ForbiddenError(
-          'Members can only update task status or edit tasks they created',
+          'Members can only update task status, assignees, or edit tasks they created',
           ERROR_CODES.FORBIDDEN
         );
       }
@@ -116,13 +116,14 @@ export class TaskService {
 
     const updatedTask = await taskRepository.update(id, input);
 
-    // Emit specialized Socket.IO events to board room
+    // Emit Socket.IO events to board room
+    SocketService.emitTaskUpdated(updatedTask.boardId, updatedTask);
+
     if (isStatusChanged) {
       SocketService.emitTaskMoved(updatedTask.boardId, updatedTask);
-    } else if (isAssigneesChanged) {
+    }
+    if (isAssigneesChanged) {
       SocketService.emitTaskAssigned(updatedTask.boardId, updatedTask);
-    } else {
-      SocketService.emitTaskUpdated(updatedTask.boardId, updatedTask);
     }
 
     return updatedTask;
