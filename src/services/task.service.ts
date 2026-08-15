@@ -80,13 +80,17 @@ export class TaskService {
 
     // Member authorization check
     if (user.role === Role.MEMBER) {
-      const isAssigned = existing.assignees.some((a) => a.userId === user.id);
       const isCreator = existing.createdById === user.id;
+      const hasNonStatusFields = Object.entries(input).some(
+        ([key, val]) => key !== 'status' && val !== undefined
+      );
 
-      // Members can update status or permitted fields if assigned or creator
-      if (!isAssigned && !isCreator) {
+      // All roles (including members) can update task status.
+      // Members cannot modify other fields on tasks they did not create.
+      if (hasNonStatusFields && !isCreator) {
         throw new ForbiddenError(
-          'Members can only update tasks they created or are assigned to'
+          'Members can only update task status or edit tasks they created',
+          ERROR_CODES.FORBIDDEN
         );
       }
     }
@@ -138,9 +142,12 @@ export class TaskService {
       throw new NotFoundError('Task not found', ERROR_CODES.TASK_NOT_FOUND);
     }
 
-    // Only Admin or Manager can delete tasks
+    // Admins and Managers can delete any task; Members can only delete tasks they created
     if (user.role === Role.MEMBER && existing.createdById !== user.id) {
-      throw new ForbiddenError('Members cannot delete tasks created by others');
+      throw new ForbiddenError(
+        'Members can only delete tasks they created',
+        ERROR_CODES.FORBIDDEN
+      );
     }
 
     const deleted = await taskRepository.delete(id);

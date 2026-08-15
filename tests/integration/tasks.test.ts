@@ -2,7 +2,7 @@ import request from 'supertest';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/config/database.js';
 import { createTestToken } from '../helpers/auth.helper.js';
-import { TaskStatus, TaskPriority } from '@prisma/client';
+import { Role, TaskStatus, TaskPriority } from '@prisma/client';
 
 jest.mock('../../src/config/database.js', () => ({
   prisma: {
@@ -107,8 +107,8 @@ describe('Tasks REST API Integration Tests', () => {
     });
   });
 
-  describe('PUT /api/v1/tasks/:id (Kanban Movement)', () => {
-    it('should update task status and return updated task data', async () => {
+  describe('PUT & PATCH /api/v1/tasks/:id (Kanban Movement & Updates)', () => {
+    it('should update task status and return updated task data (PUT)', async () => {
       (prisma.task.findUnique as jest.Mock).mockResolvedValue({
         id: sampleTaskId,
         title: 'Move Task',
@@ -139,10 +139,73 @@ describe('Tasks REST API Integration Tests', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe(TaskStatus.IN_PROGRESS);
     });
+
+    it('should update task status via PATCH as a member on an unassigned task', async () => {
+      const memberToken = createTestToken({
+        userId: '00000000-0000-0000-0000-000000000099',
+        role: Role.MEMBER,
+      });
+
+      (prisma.task.findUnique as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'Move Task',
+        status: TaskStatus.TODO,
+        boardId: sampleBoardId,
+        createdById: '00000000-0000-0000-0000-000000000001',
+        assignees: [],
+      });
+
+      (prisma.task.update as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'Move Task',
+        status: TaskStatus.COMPLETED,
+        boardId: sampleBoardId,
+        createdById: '00000000-0000-0000-0000-000000000001',
+        assignees: [],
+        tags: [],
+      });
+
+      const res = await request(app)
+        .patch(`/api/v1/tasks/${sampleTaskId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({
+          status: 'completed',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe(TaskStatus.COMPLETED);
+    });
+
+    it('should return 403 when member tries to update non-status fields of another user task', async () => {
+      const memberToken = createTestToken({
+        userId: '00000000-0000-0000-0000-000000000099',
+        role: Role.MEMBER,
+      });
+
+      (prisma.task.findUnique as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'Original Title',
+        status: TaskStatus.TODO,
+        boardId: sampleBoardId,
+        createdById: '00000000-0000-0000-0000-000000000001',
+        assignees: [],
+      });
+
+      const res = await request(app)
+        .put(`/api/v1/tasks/${sampleTaskId}`)
+        .set('Authorization', `Bearer ${memberToken}`)
+        .send({
+          title: 'Unauthorized New Title',
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
   });
 
   describe('DELETE /api/v1/tasks/:id', () => {
-    it('should delete task successfully', async () => {
+    it('should delete task successfully as admin', async () => {
       (prisma.task.findUnique as jest.Mock).mockResolvedValue({
         id: sampleTaskId,
         title: 'Delete Task',
@@ -163,6 +226,57 @@ describe('Tasks REST API Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+    });
+
+    it('should allow member to delete their own created task', async () => {
+      const memberUserId = '00000000-0000-0000-0000-000000000099';
+      const memberToken = createTestToken({
+        userId: memberUserId,
+        role: Role.MEMBER,
+      });
+
+      (prisma.task.findUnique as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'My Task',
+        boardId: sampleBoardId,
+        createdById: memberUserId,
+        assignees: [],
+      });
+
+      (prisma.task.delete as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'My Task',
+        boardId: sampleBoardId,
+      });
+
+      const res = await request(app)
+        .delete(`/api/v1/tasks/${sampleTaskId}`)
+        .set('Authorization', `Bearer ${memberToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should return 403 when member attempts to delete another user task', async () => {
+      const memberToken = createTestToken({
+        userId: '00000000-0000-0000-0000-000000000099',
+        role: Role.MEMBER,
+      });
+
+      (prisma.task.findUnique as jest.Mock).mockResolvedValue({
+        id: sampleTaskId,
+        title: 'Someone Else Task',
+        boardId: sampleBoardId,
+        createdById: '00000000-0000-0000-0000-000000000001',
+        assignees: [],
+      });
+
+      const res = await request(app)
+        .delete(`/api/v1/tasks/${sampleTaskId}`)
+        .set('Authorization', `Bearer ${memberToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
     });
   });
 });

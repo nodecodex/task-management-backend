@@ -41,6 +41,12 @@ router.put(
   taskController.updateTask
 );
 
+router.patch(
+  '/:id',
+  validateRequest({ params: taskIdParamSchema, body: updateTaskSchema }),
+  taskController.updateTask
+);
+
 router.delete(
   '/:id',
   validateRequest({ params: taskIdParamSchema }),
