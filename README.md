@@ -271,6 +271,9 @@ const socket = io("http://localhost:5000");
 
 // Join room for board
 socket.emit("join:board", "board-uuid-123");
+
+// Leave room for board
+socket.emit("leave:board", "board-uuid-123");
 ```
 
 ### 2. Listening to Real-time Events
@@ -295,9 +298,29 @@ socket.on("task:deleted", ({ id, boardId }) => {
   console.log("Task deleted:", id);
 });
 
+// Task assigned
+socket.on("task:assigned", (task) => {
+  console.log("Task assigned:", task);
+});
+
 // New comment added
-socket.on("task:commented", ({ taskId, comment }) => {
-  console.log("New comment on task:", taskId, comment);
+socket.on("task:commented", (comment) => {
+  console.log("New comment on task:", comment);
+});
+
+// Board created
+socket.on("board:created", (board) => {
+  console.log("New board created:", board);
+});
+
+// Board updated
+socket.on("board:updated", (board) => {
+  console.log("Board updated:", board);
+});
+
+// Board deleted
+socket.on("board:deleted", ({ boardId }) => {
+  console.log("Board deleted:", boardId);
 });
 ```
 
