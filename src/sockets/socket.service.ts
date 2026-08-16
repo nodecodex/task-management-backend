@@ -69,4 +69,19 @@ export class SocketService {
     io.to(room).emit(SOCKET_EVENTS.BOARD_UPDATED, board);
     logger.debug({ room, event: SOCKET_EVENTS.BOARD_UPDATED }, 'Emitted board:updated event');
   }
+  public static emitBoardCreated(board: unknown): void {
+    const io = getSocketServer();
+    if (!io) return;
+
+    io.emit(SOCKET_EVENTS.BOARD_CREATED, board);
+    logger.debug({ event: SOCKET_EVENTS.BOARD_CREATED }, 'Emitted board:created event globally');
+  }
+
+  public static emitBoardDeleted(boardId: string): void {
+    const io = getSocketServer();
+    if (!io) return;
+
+    io.emit(SOCKET_EVENTS.BOARD_DELETED, { boardId });
+    logger.debug({ event: SOCKET_EVENTS.BOARD_DELETED, boardId }, 'Emitted board:deleted event globally');
+  }
 }
